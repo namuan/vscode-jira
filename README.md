@@ -322,16 +322,6 @@ Enable debug logging:
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Quick Contribution Steps
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
-
 ### Development Guidelines
 - Follow TypeScript best practices
 - Maintain test coverage above 80%
