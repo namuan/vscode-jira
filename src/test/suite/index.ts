@@ -1,6 +1,7 @@
 import * as path from 'path';
 
 const Mocha = require('mocha');
+const glob = require('glob');
 
 export function run(): Promise<void> {
 	// Create the mocha test
@@ -13,8 +14,11 @@ export function run(): Promise<void> {
 
 	return new Promise((c, e) => {
 		try {
-			// Add test files manually for now
-			mocha.addFile(path.resolve(testsRoot, 'suite/extension.test.js'));
+			// Discover and add all test files under suite ending with .test.js
+			const files = glob.sync('suite/**/*.test.js', { cwd: testsRoot });
+			for (const f of files) {
+				mocha.addFile(path.resolve(testsRoot, f));
+			}
 
 			// Run the mocha test
 			mocha.run((failures: number) => {

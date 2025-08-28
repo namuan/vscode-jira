@@ -113,11 +113,11 @@ suite('VSCode JIRA Integration Extension Test Suite', () => {
 	});
 
 	test('Extension should be present', () => {
-		assert.ok(vscode.extensions.getExtension('undefined_publisher.vscode-jira-integration'));
+		assert.ok(vscode.extensions.getExtension('namuan.vscode-jira-integration'));
 	});
 
 	test('Should activate extension', async () => {
-		const extension = vscode.extensions.getExtension('undefined_publisher.vscode-jira-integration');
+		const extension = vscode.extensions.getExtension('namuan.vscode-jira-integration');
 		if (extension) {
 			await extension.activate();
 			assert.strictEqual(extension.isActive, true);
