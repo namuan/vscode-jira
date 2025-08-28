@@ -1,0 +1,171 @@
+{
+    "name": "vscode-jira-integration",
+    "displayName": "VSCode JIRA Integration",
+    "description": "VSCode Extension for Jira Cloud Integration",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.74.0"
+    },
+    "categories": [
+        "Other",
+        "Extension Packs"
+    ],
+    "keywords": [
+        "jira",
+        "atlassian",
+        "issue",
+        "project management",
+        "agile",
+        "scrum",
+        "kanban",
+        "productivity",
+        "workflow"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/namuan/vscode-jira-integration.git"
+    },
+    "bugs": {
+        "url": "https://github.com/namuan/vscode-jira-integration/issues"
+    },
+    "homepage": "https://github.com/namuan/vscode-jira-integration#readme",
+    "license": "MIT",
+    "publisher": "namuan",
+    "activationEvents": [
+        "onCommand:jira.authenticate",
+        "onCommand:jira.clearCredentials",
+        "onCommand:jira.status",
+        "onCommand:jira.refresh",
+        "onCommand:jira.openIssue",
+        "onCommand:jira.viewIssues",
+        "onCommand:jira.searchIssues",
+        "onCommand:jira.filterIssues",
+        "onCommand:jira.updateIssueStatus",
+        "onCommand:jira.addComment",
+        "onCommand:jira.assignIssue",
+        "onCommand:jira.quickActions",
+        "onCommand:jira.createIssue"
+    ],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "jira.authenticate",
+                "title": "Authenticate with Jira",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.clearCredentials",
+                "title": "Clear Jira Credentials",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.status",
+                "title": "Check Jira Connection Status",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.refresh",
+                "title": "Refresh Issues",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.openIssue",
+                "title": "Open Issue Details",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.searchIssues",
+                "title": "Search Issues",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.filterIssues",
+                "title": "Filter Issues",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.updateIssueStatus",
+                "title": "Update Issue Status",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.addComment",
+                "title": "Add Comment to Issue",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.assignIssue",
+                "title": "Assign Issue",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.quickActions",
+                "title": "Jira Quick Actions",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.viewIssues",
+                "title": "View Jira Issues",
+                "category": "Jira"
+            },
+            {
+                "command": "jira.createIssue",
+                "title": "Create Jira Issue",
+                "category": "Jira"
+            }
+        ],
+        "views": {
+            "explorer": [
+                {
+                    "id": "jiraIssues",
+                    "name": "Jira Issues",
+                    "when": "jira:authenticated"
+                }
+            ]
+        },
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "jira",
+                    "title": "Jira",
+                    "icon": "$(issues)"
+                }
+            ]
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run package",
+        "compile": "webpack",
+        "watch": "webpack --watch",
+        "package": "webpack --mode production --devtool hidden-source-map",
+        "compile-tests": "tsc -p . --outDir out",
+        "watch-tests": "tsc -p . -w --outDir out",
+        "pretest": "npm run compile-tests && npm run compile && npm run lint",
+        "lint": "eslint src --ext ts",
+        "test": "node ./out/test/runTest.js",
+        "package-extension": "npx @vscode/vsce package",
+        "publish-extension": "npx @vscode/vsce publish",
+        "install-local": "code --install-extension *.vsix"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.74.0",
+        "@types/node": "16.x",
+        "@types/mocha": "^10.0.1",
+        "@types/sinon": "^10.0.13",
+        "@types/glob": "^8.0.0",
+        "@typescript-eslint/eslint-plugin": "^5.45.0",
+        "@typescript-eslint/parser": "^5.45.0",
+        "eslint": "^8.28.0",
+        "typescript": "^4.9.4",
+        "@vscode/test-electron": "^2.2.0",
+        "mocha": "^10.2.0",
+        "sinon": "^15.0.1",
+        "ts-loader": "^9.4.1",
+        "webpack": "^5.76.0",
+        "webpack-cli": "^5.0.1"
+    },
+    "dependencies": {
+        "axios": "^1.6.0"
+    }
+}
