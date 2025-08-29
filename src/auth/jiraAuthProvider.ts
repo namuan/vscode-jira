@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import axios from 'axios';
+import { logDebug, logInfo, logError, logWarning } from '../utils/logger';
 
 export interface JiraCredentials {
 	baseUrl: string;
@@ -12,9 +13,10 @@ export class JiraAuthProvider {
 	private static readonly LAST_VALIDATED_KEY = 'jira.lastValidated';
 	private static readonly VALIDATION_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-	constructor(private context: vscode.ExtensionContext) {}
+	constructor(private context: vscode.ExtensionContext) { }
 
 	async authenticate(): Promise<JiraCredentials> {
+		logInfo('Starting Jira authentication flow');
 		// Get Jira base URL
 		const baseUrl = await vscode.window.showInputBox({
 			prompt: 'Enter your Jira base URL',
@@ -70,10 +72,12 @@ export class JiraAuthProvider {
 			apiToken
 		};
 
+		logDebug('Received authentication credentials', { baseUrl: credentials.baseUrl });
 		// Validate credentials by testing API connection
 		await this.validateCredentials(credentials);
 
 		// Store credentials securely
+		logDebug('Storing Jira credentials in secure storage');
 		await this.context.secrets.store(JiraAuthProvider.CREDENTIALS_KEY, JSON.stringify(credentials));
 
 		return credentials;
@@ -83,33 +87,38 @@ export class JiraAuthProvider {
 		try {
 			const stored = await this.context.secrets.get(JiraAuthProvider.CREDENTIALS_KEY);
 			if (stored) {
+				logDebug('Retrieved stored Jira credentials');
 				const credentials = JSON.parse(stored) as JiraCredentials;
-				
+
 				// Check if credentials need revalidation
 				const shouldRevalidate = await this.shouldRevalidateCredentials();
 				if (shouldRevalidate) {
+					logDebug('Revalidating stored credentials');
 					try {
 						await this.validateCredentials(credentials, false); // Silent validation
 						await this.updateLastValidated();
+						logInfo('Credentials revalidation successful');
 					} catch (error) {
+						logError('Credentials revalidation failed', error as Error);
 						// Credentials are invalid, clear them
 						await this.clearCredentials();
 						vscode.window.showWarningMessage('Your Jira credentials have expired or become invalid. Please re-authenticate.');
 						return null;
 					}
 				}
-				
+
 				return credentials;
 			}
 		} catch (error) {
 			// Handle parsing errors gracefully
-			console.error('Error parsing stored credentials:', error);
+			logError('Error parsing stored credentials', error as Error);
 			await this.clearCredentials(); // Clear corrupted credentials
 		}
 		return null;
 	}
 
 	async clearCredentials(): Promise<void> {
+		logInfo('Clearing Jira credentials');
 		await this.context.secrets.delete(JiraAuthProvider.CREDENTIALS_KEY);
 		await this.context.globalState.update(JiraAuthProvider.LAST_VALIDATED_KEY, undefined);
 		vscode.commands.executeCommand('setContext', 'jira:authenticated', false);
@@ -125,7 +134,7 @@ export class JiraAuthProvider {
 		if (!credentials) {
 			return { authenticated: false };
 		}
-		
+
 		try {
 			const authHeader = `Basic ${Buffer.from(`${credentials.email}:${credentials.apiToken}`).toString('base64')}`;
 			const response = await axios.get(`${credentials.baseUrl}/rest/api/3/myself`, {
@@ -135,7 +144,7 @@ export class JiraAuthProvider {
 				},
 				timeout: 5000
 			});
-			
+
 			return {
 				authenticated: true,
 				user: response.data.displayName || response.data.emailAddress,
@@ -151,7 +160,7 @@ export class JiraAuthProvider {
 		if (!lastValidated) {
 			return true;
 		}
-		
+
 		const now = Date.now();
 		return (now - lastValidated) > JiraAuthProvider.VALIDATION_INTERVAL;
 	}
@@ -161,9 +170,10 @@ export class JiraAuthProvider {
 	}
 
 	private async validateCredentials(credentials: JiraCredentials, showSuccessMessage: boolean = true): Promise<void> {
+		logDebug('Validating Jira credentials', { baseUrl: credentials.baseUrl });
 		try {
 			const authHeader = `Basic ${Buffer.from(`${credentials.email}:${credentials.apiToken}`).toString('base64')}`;
-			
+
 			// Test authentication by calling the current user endpoint
 			const response = await axios.get(`${credentials.baseUrl}/rest/api/3/myself`, {
 				headers: {
@@ -182,10 +192,18 @@ export class JiraAuthProvider {
 				throw new Error('Invalid response from Jira API');
 			}
 
+			const user = response.data.displayName || response.data.emailAddress;
+			logInfo(`Successfully authenticated with Jira as ${user}`);
 			if (showSuccessMessage) {
-				vscode.window.showInformationMessage(`Successfully authenticated as ${response.data.displayName || response.data.emailAddress}`);
+				vscode.window.showInformationMessage(`Successfully authenticated as ${user}`);
 			}
 		} catch (error: any) {
+			const validationError = new Error(error.message);
+			(validationError as any).baseUrl = credentials.baseUrl;
+			(validationError as any).status = error.response?.status;
+			(validationError as any).code = error.code;
+			logError('Jira credential validation failed', validationError);
+
 			if (error.response) {
 				if (error.response.status === 401) {
 					throw new Error('Invalid email or API token. Please check your credentials.');

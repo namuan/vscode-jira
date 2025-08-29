@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { JiraApiClient, JiraIssue } from '../api/jiraApiClient';
+import { logDebug, logInfo, logError } from '../utils/logger';
 
 interface JiraTreeItem extends vscode.TreeItem {
 	issue?: JiraIssue;
@@ -12,9 +13,10 @@ export class JiraIssueProvider implements vscode.TreeDataProvider<JiraTreeItem> 
 	private issues: JiraIssue[] = [];
 	private isLoading = false;
 
-	constructor(private jiraApiClient: JiraApiClient) {}
+	constructor(private jiraApiClient: JiraApiClient) { }
 
 	refresh(): void {
+		logDebug('Refreshing Jira issues tree');
 		this._onDidChangeTreeData.fire();
 	}
 
@@ -32,7 +34,7 @@ export class JiraIssueProvider implements vscode.TreeDataProvider<JiraTreeItem> 
 			`${issue.key}: ${this.truncateText(issue.fields.summary, 50)}`,
 			vscode.TreeItemCollapsibleState.None
 		);
-		
+
 		// Enhanced description with priority and assignee
 		let description = issue.fields.status.name;
 		if (issue.fields.priority) {
@@ -42,7 +44,7 @@ export class JiraIssueProvider implements vscode.TreeDataProvider<JiraTreeItem> 
 			description += ` • ${issue.fields.assignee.displayName}`;
 		}
 		item.description = description;
-		
+
 		// Enhanced tooltip with more information
 		const createdDate = new Date(issue.fields.created).toLocaleDateString();
 		const updatedDate = new Date(issue.fields.updated).toLocaleDateString();
@@ -57,17 +59,17 @@ export class JiraIssueProvider implements vscode.TreeDataProvider<JiraTreeItem> 
 			`**Updated**: ${updatedDate}\n\n` +
 			`${issue.fields.description ? this.truncateText(issue.fields.description, 200) : 'No description'}`
 		);
-		
+
 		item.contextValue = 'jiraIssue';
 		item.command = {
 			command: 'jira.openIssue',
 			title: 'Open Issue',
 			arguments: [issue]
 		};
-		
+
 		// Set icon based on issue type and status
 		item.iconPath = this.getIssueIcon(issue);
-		
+
 		return item;
 	}
 
@@ -87,9 +89,11 @@ export class JiraIssueProvider implements vscode.TreeDataProvider<JiraTreeItem> 
 				return [this.createLoadingItem()];
 			}
 
+			logDebug('Starting to load Jira issues');
 			this.isLoading = true;
 			this.issues = await this.jiraApiClient.getIssues();
 			this.isLoading = false;
+			logInfo(`Successfully loaded ${this.issues.length} Jira issues`);
 
 			if (this.issues.length === 0) {
 				return [this.createEmptyItem()];
@@ -98,6 +102,7 @@ export class JiraIssueProvider implements vscode.TreeDataProvider<JiraTreeItem> 
 			return this.createCategoryItems();
 		} catch (error) {
 			this.isLoading = false;
+			logError('Failed to load Jira issues', error as Error);
 			vscode.window.showErrorMessage(`Failed to load Jira issues: ${error}`);
 			return [this.createErrorItem()];
 		}
@@ -108,26 +113,26 @@ export class JiraIssueProvider implements vscode.TreeDataProvider<JiraTreeItem> 
 
 		switch (category) {
 			case 'In Progress':
-				filteredIssues = this.issues.filter(issue => 
+				filteredIssues = this.issues.filter(issue =>
 					issue.fields.status.name.toLowerCase().includes('progress') ||
 					issue.fields.status.name.toLowerCase().includes('development')
 				);
 				break;
 			case 'To Do':
-				filteredIssues = this.issues.filter(issue => 
+				filteredIssues = this.issues.filter(issue =>
 					issue.fields.status.name.toLowerCase().includes('to do') ||
 					issue.fields.status.name.toLowerCase().includes('open') ||
 					issue.fields.status.name.toLowerCase().includes('backlog')
 				);
 				break;
 			case 'Review':
-				filteredIssues = this.issues.filter(issue => 
+				filteredIssues = this.issues.filter(issue =>
 					issue.fields.status.name.toLowerCase().includes('review') ||
 					issue.fields.status.name.toLowerCase().includes('testing')
 				);
 				break;
 			case 'Done':
-				filteredIssues = this.issues.filter(issue => 
+				filteredIssues = this.issues.filter(issue =>
 					issue.fields.status.name.toLowerCase().includes('done') ||
 					issue.fields.status.name.toLowerCase().includes('closed') ||
 					issue.fields.status.name.toLowerCase().includes('resolved')
@@ -153,30 +158,31 @@ export class JiraIssueProvider implements vscode.TreeDataProvider<JiraTreeItem> 
 			{ name: 'Done', icon: 'check', count: 0 }
 		];
 
-		// Count issues in each category
+		// Count and log issues in each category
 		categories.forEach(category => {
+			logDebug(`Counting issues for category: ${category.name}`);
 			switch (category.name) {
 				case 'In Progress':
-					category.count = this.issues.filter(issue => 
+					category.count = this.issues.filter(issue =>
 						issue.fields.status.name.toLowerCase().includes('progress') ||
 						issue.fields.status.name.toLowerCase().includes('development')
 					).length;
 					break;
 				case 'To Do':
-					category.count = this.issues.filter(issue => 
+					category.count = this.issues.filter(issue =>
 						issue.fields.status.name.toLowerCase().includes('to do') ||
 						issue.fields.status.name.toLowerCase().includes('open') ||
 						issue.fields.status.name.toLowerCase().includes('backlog')
 					).length;
 					break;
 				case 'Review':
-					category.count = this.issues.filter(issue => 
+					category.count = this.issues.filter(issue =>
 						issue.fields.status.name.toLowerCase().includes('review') ||
 						issue.fields.status.name.toLowerCase().includes('testing')
 					).length;
 					break;
 				case 'Done':
-					category.count = this.issues.filter(issue => 
+					category.count = this.issues.filter(issue =>
 						issue.fields.status.name.toLowerCase().includes('done') ||
 						issue.fields.status.name.toLowerCase().includes('closed') ||
 						issue.fields.status.name.toLowerCase().includes('resolved')

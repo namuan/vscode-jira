@@ -2,13 +2,18 @@ import * as vscode from 'vscode';
 import { JiraAuthProvider } from './auth/jiraAuthProvider';
 import { JiraIssueProvider } from './providers/jiraIssueProvider';
 import { JiraApiClient } from './api/jiraApiClient';
+import { initializeLogger, logInfo } from './utils/logger';
 
 let jiraAuthProvider: JiraAuthProvider;
 let jiraApiClient: JiraApiClient;
 let jiraIssueProvider: JiraIssueProvider;
+let jiraOutputChannel: vscode.OutputChannel;
 
 export function activate(context: vscode.ExtensionContext) {
-	console.log('VSCode JIRA Integration extension is now active!');
+	// Setup logging
+	jiraOutputChannel = vscode.window.createOutputChannel('Jira Integration');
+	initializeLogger(jiraOutputChannel);
+	logInfo('VSCode JIRA Integration extension is now active!');
 
 	// Initialize providers
 	jiraAuthProvider = new JiraAuthProvider(context);
@@ -46,16 +51,16 @@ export function activate(context: vscode.ExtensionContext) {
 				vscode.window.showWarningMessage('Please authenticate with Jira first.');
 				return;
 			}
-			
+
 			jiraApiClient.setCredentials(credentials);
 			const issues = await jiraApiClient.getIssues();
-			
+
 			// Enhanced issue items with more information
 			const issueItems = issues.map(issue => {
 				const priority = issue.fields.priority?.name || 'None';
 				const assignee = issue.fields.assignee?.displayName || 'Unassigned';
 				const project = issue.fields.project.name;
-				
+
 				return {
 					label: `$(${getIssueTypeIcon(issue.fields.issuetype.name)}) ${issue.key}: ${issue.fields.summary}`,
 					description: `${issue.fields.status.name} • ${priority} • ${assignee}`,
@@ -63,14 +68,14 @@ export function activate(context: vscode.ExtensionContext) {
 					issue: issue
 				};
 			});
-			
+
 			const selected = await vscode.window.showQuickPick(issueItems, {
 				placeHolder: 'Select a Jira issue to view details',
 				matchOnDescription: true,
 				matchOnDetail: true,
 				canPickMany: false
 			});
-			
+
 			if (selected && selected.issue) {
 				// Open the selected issue in webview
 				vscode.commands.executeCommand('jira.openIssue', selected.issue);
@@ -250,7 +255,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const priority = issue.fields.priority?.name || 'None';
 				const assignee = issue.fields.assignee?.displayName || 'Unassigned';
 				const project = issue.fields.project.name;
-				
+
 				return {
 					label: `$(${getIssueTypeIcon(issue.fields.issuetype.name)}) ${issue.key}: ${issue.fields.summary}`,
 					description: `${issue.fields.status.name} • ${priority} • ${assignee}`,
@@ -315,7 +320,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const priority = issue.fields.priority?.name || 'None';
 				const assignee = issue.fields.assignee?.displayName || 'Unassigned';
 				const project = issue.fields.project.name;
-				
+
 				return {
 					label: `$(${getIssueTypeIcon(issue.fields.issuetype.name)}) ${issue.key}: ${issue.fields.summary}`,
 					description: `${issue.fields.status.name} • ${priority} • ${assignee}`,
@@ -547,7 +552,7 @@ export function activate(context: vscode.ExtensionContext) {
 			// For unassign, assigneeId remains null
 
 			// Step 3: Confirm assignment
-			const confirmMessage = selectedOption.value === 'unassign' 
+			const confirmMessage = selectedOption.value === 'unassign'
 				? `Unassign ${issueKey}?`
 				: `Assign ${issueKey} to ${assigneeName}?`;
 
@@ -694,7 +699,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 			// Step 6: Confirm creation
 			const confirmMessage = `Create ${selectedIssueType.label} in ${selectedProject.project.name}?\n\nSummary: ${summary}\nDescription: ${description || 'None'}\nPriority: ${selectedPriority?.label || 'Default'}`;
-			
+
 			const confirm = await vscode.window.showInformationMessage(
 				confirmMessage,
 				{ modal: true },
@@ -788,7 +793,10 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-	console.log('VSCode JIRA Integration extension is now deactivated.');
+	logInfo('VSCode JIRA Integration extension is now deactivated.');
+	if (jiraOutputChannel) {
+		jiraOutputChannel.dispose();
+	}
 }
 
 function getIssueTypeIcon(issueType: string): string {
@@ -813,7 +821,7 @@ function getIssueTypeIcon(issueType: string): string {
 function getIssueWebviewContent(issue: any, baseUrl?: string): string {
 	const createdDate = new Date(issue.fields.created).toLocaleDateString();
 	const updatedDate = new Date(issue.fields.updated).toLocaleDateString();
-	
+
 	// Process comments if available
 	let commentsHtml = '';
 	if (issue.fields.comment && issue.fields.comment.comments) {
@@ -821,11 +829,11 @@ function getIssueWebviewContent(issue: any, baseUrl?: string): string {
 		commentsHtml = comments.map((comment: any) => {
 			const commentDate = new Date(comment.created).toLocaleDateString();
 			const author = comment.author.displayName;
-			const body = comment.body.content ? 
-				comment.body.content.map((c: any) => 
+			const body = comment.body.content ?
+				comment.body.content.map((c: any) =>
 					c.content ? c.content.map((t: any) => t.text).join('') : ''
 				).join('\n') : 'No content';
-			
+
 			return `
 				<div class="comment">
 					<div class="comment-header">
@@ -837,7 +845,7 @@ function getIssueWebviewContent(issue: any, baseUrl?: string): string {
 			`;
 		}).join('');
 	}
-	
+
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>

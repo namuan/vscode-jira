@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { JiraCredentials } from '../auth/jiraAuthProvider';
 import * as vscode from 'vscode';
+import { logDebug, logInfo, logError } from '../utils/logger';
 
 export interface JiraIssue {
 	key: string;
@@ -89,6 +90,7 @@ export class JiraApiClient {
 
 		const searchJql = jql || 'assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC';
 		return this.executeWithRetry(async () => {
+			logDebug(`Fetching issues with JQL: ${searchJql}`);
 			const response = await this.axiosInstance!.get('/search', {
 				params: {
 					jql: searchJql,
@@ -97,6 +99,7 @@ export class JiraApiClient {
 				}
 			});
 
+			logInfo(`Successfully fetched ${response.data.issues?.length || 0} issues`);
 			return response.data.issues || [];
 		}, 'fetch issues');
 	}
@@ -163,46 +166,46 @@ export class JiraApiClient {
 		}
 
 		return this.executeWithRetry(async () => {
-				// Get available projects to use the first one as default
-				const projectKey = request.projectKey || await this.getDefaultProjectKey();
-				const issueType = request.issueType || 'Task';
+			// Get available projects to use the first one as default
+			const projectKey = request.projectKey || await this.getDefaultProjectKey();
+			const issueType = request.issueType || 'Task';
 
-				const issueData: any = {
-					fields: {
-						project: {
-							key: projectKey
-						},
-						summary: request.summary,
-						description: {
-							type: 'doc',
-							version: 1,
-							content: [
-								{
-									type: 'paragraph',
-									content: [
-										{
-											type: 'text',
-											text: request.description
-										}
-									]
-								}
-							]
-						},
-						issuetype: {
-							name: issueType
-						}
+			const issueData: any = {
+				fields: {
+					project: {
+						key: projectKey
+					},
+					summary: request.summary,
+					description: {
+						type: 'doc',
+						version: 1,
+						content: [
+							{
+								type: 'paragraph',
+								content: [
+									{
+										type: 'text',
+										text: request.description
+									}
+								]
+							}
+						]
+					},
+					issuetype: {
+						name: issueType
 					}
-				};
-
-				// Add priority if specified
-				if (request.priority) {
-					issueData.fields.priority = {
-						name: request.priority
-					};
 				}
+			};
+
+			// Add priority if specified
+			if (request.priority) {
+				issueData.fields.priority = {
+					name: request.priority
+				};
+			}
 
 			const response = await this.axiosInstance!.post('/issue', issueData);
-			
+
 			// Fetch the created issue to return complete data
 			const createdIssue = await this.axiosInstance!.get(`/issue/${response.data.key}`, {
 				params: {
@@ -279,30 +282,30 @@ export class JiraApiClient {
 
 	private async executeWithRetry<T>(operation: () => Promise<T>, operationName: string): Promise<T> {
 		let lastError: Error = new Error(`Failed to ${operationName} after ${this.maxRetries} attempts`);
-		
+
 		for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
 			try {
 				return await operation();
 			} catch (error: any) {
 				lastError = error;
-				
+
 				// Don't retry on authentication errors or client errors (4xx)
 				if (error.status === 401 || error.status === 403 || (error.status >= 400 && error.status < 500)) {
 					break;
 				}
-				
+
 				// Don't retry on the last attempt
 				if (attempt === this.maxRetries) {
 					break;
 				}
-				
+
 				// Wait before retrying (exponential backoff)
 				const delay = this.retryDelay * Math.pow(2, attempt - 1);
-				vscode.window.showWarningMessage(`Failed to ${operationName}, retrying in ${delay/1000}s... (attempt ${attempt}/${this.maxRetries})`);
+				vscode.window.showWarningMessage(`Failed to ${operationName}, retrying in ${delay / 1000}s... (attempt ${attempt}/${this.maxRetries})`);
 				await new Promise(resolve => setTimeout(resolve, delay));
 			}
 		}
-		
+
 		throw lastError;
 	}
 
@@ -310,9 +313,10 @@ export class JiraApiClient {
 		if (error.response) {
 			const status = error.response.status;
 			const data = error.response.data as any;
-			
+			const url = error.config?.url || 'unknown endpoint';
+
 			let message = `Jira API error (${status})`;
-			
+
 			if (data?.errorMessages && data.errorMessages.length > 0) {
 				message += `: ${data.errorMessages[0]}`;
 			} else if (data?.message) {
@@ -320,10 +324,12 @@ export class JiraApiClient {
 			} else {
 				message += `: ${error.response.statusText}`;
 			}
-			
+
 			const apiError = new Error(message);
 			(apiError as any).status = status;
 			(apiError as any).response = error.response;
+
+			logError(`API request failed to ${url}`, apiError);
 			return apiError;
 		} else if (error.request) {
 			return new Error('Network error: Unable to connect to Jira. Please check your internet connection.');
